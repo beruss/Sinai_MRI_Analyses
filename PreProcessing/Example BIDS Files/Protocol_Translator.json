@@ -1,0 +1,12 @@
+{
+"T2w_SPC_0.5_Monkey_13":["anat","T2w"],
+"TEST2_EPI_HF_7":["func","task-REST_run-1_bold"],
+"TEST_EPI_HF_5":["func","task-REST_run-2_bold"],
+"BOLD_PAT2_HF_10":["func","task-REST_run-3_bold"],
+"BOLD_PAT2_HF_11":["func","task-REST_run-4_bold"],
+"BOLD_PAT2_HF_12":["func","task-REST_run-5_bold"],
+"FieldMap_SE_EPI_HF_8":["fmap","magnitude1"],
+"FieldMap_SE_EPI_FH_9":["fmap","magnitude2"],
+"T1w_MPR_0.5_Monkey_6":["anat","T1w"],
+"LAST_SCAN":["anat","LAST_SCAN"]
+}

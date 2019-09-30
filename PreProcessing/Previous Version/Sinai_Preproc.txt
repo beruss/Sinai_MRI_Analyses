@@ -1,0 +1,73 @@
+
+# Slice Time correct (may be done) 
+# 3dTshift -prefix $dset_stc.nii.gz $dataset
+
+3dTshift -prefix LAF_20190821_REST_1_stc.nii.gz sub-Lafeyette_ses-20190821_task-REST_run-3_bold.nii.gz 
+3dTshift -prefix LAF_20190821_REST_1_stc.nii.gz sub-Lafeyette_ses-20190821_task-REST_run-4_bold.nii.gz
+
+# Distortion Correction HERE!
+3dTcat -prefix LAF_20190821_fmap.nii.gz LAF_20190821_REST_1_stc.nii.gz[0] sub-Lafeyette_ses-20190821_magnitude2.nii.gz[0]
+
+topup --imain=LAF_20190821_fmap.nii.gz --datain=../LAF_acq_param.txt --config=b02b0.cnf --out=LAF_20190821_fmap_top
+
+applytopup --imain=LAF_20190821_REST_1_stc.nii.gz --datain=../LAF_acq_param.txt --inindex=1 --topup=LAF_20190821_fmap_top -o LAF_20190821_REST_1_stc_fmc.nii.gz
+
+# Motion Correction
+# 3dvolreg -prefix $dset_mot.nii.gz -dfile $dset_mot.1D $dset_stc
+
+3dvolreg -prefix LAF_20190821_REST_1_stc_mot.nii.gz -dfile LAF_20190821_REST_1_stc_mot.1D LAF_20190821_REST_1_stc.nii.gz
+
+
+# Align within Session
+# 	Get mean
+# 		3dtstat -mean -prefix $monk_date_rest_mn $dset_mot	
+#	normalize 
+#		N4BiasFieldCorrection -d 3 -i $dset_mn -o $dset_mn_N4
+#		N4BiasFieldCorrection -d 3 -i $dset_T1w -o $dset_T1w_N4
+#	align centers (super course alignment)
+# 		@AlignCenters -base $dset_T1w_N4 -dset $dset_mn_N4 -prefix $dset_mn_N4_shft
+# 3dAllineate -base $dset_T1w_N4 -input $dset_mn_N4_shft -1Dmatrix_save $monk_date_EPI2ANAT.1D
+#
+# Now apply transforms to actual data 
+#	@AlignCenters -base $dset_T1w_N4 -dset $dset_mot -prefix $dset_mot_shft
+#	3dAllineate -base $dset_T1w_N4 -input $dset_mot_shft -1Dmatrix_apply $monk_date_EPI2ANAT.1D
+#
+ 
+
+3dtstat -prefix LAF_20190821_REST_1_mn.nii.gz -mean LAF_20190821_REST_1_stc_mot.nii.gz'
+
+N4BiasFieldCorrection -d 3 -i LAF_20190821_REST_1_mn.nii.gz -o LAF_20190821_REST_1_mn_N4.nii.gz
+
+
+@Align_Centers -base LAF_20190821_T1w_N4.nii.gz -dset LAF_20190821_REST_1_mn_N4.nii.gz -prefix LAF_20190821_REST_1_mn_N4_shft.nii.gz
+
+
+## Skull Stripping
+# N4BiasFieldCorrection -d 3 -i sub-Lafeyette_ses-20190821_T1w.nii.gz -o LAF_20190821_T1w_N4.nii.gz
+
+DenoiseImage -i sub-Lafeyette_ses-20190821_T1w.nii.gz -n Gaussian -d 3 -o LAF_T1w_DN_1.nii.gz 
+3dUnifize -prefix LAF_T1w_U2.nii.gz -input LAF_T1w_DN_1.nii.gz -Urad 25
+@NoisySkullStrip -input LAF_T1w_U2.nii.gz -3dSkullStrip_opts -monkey -surface_coil -push_to_edge -init_radius 40 -touchup
+
+3dAutomask -dilate 6 -prefix LAF_T1w_U2_amd3.nii.gz LAF_T1w_U2.nii.gz.ns+orig
+
+3dcalc -a LAF_T1w_U2_amd3.nii.gz -b sub-Lafeyette_ses-20190821_T1w.nii.gz -exp 'a*b' -prefix LAF_T1w_strp_ver1.nii.gz
+
+3dUnifize -prefix LAF_T1w_strp1_U1.nii.gz -input LAF_T1w_strp_ver1.nii.gz -overwrite
+
+DenoiseImage -i LAF_T1w_strp1_U1.nii.gz -n Gaussian -d 3 -o LAF_T1w_strp1_U1_dn.nii.gz
+
+3dSkullStrip -input LAF_T1w_strp1_U1_dn.nii.gz -prefix LAF_T1w_strp1_U1_dn_strp.nii.gz -monkey -surface_coil -init_radius 20 -touchup -overwrite
+
+3dAutomask -dilate 2 -prefix LAF_T1w_strp1_U1_dn_strp_am.nii.gz LAF_T1w_strp1_U1_dn_strp.nii.gz
+
+3dcalc -a LAF_T1w_strp1_U1_dn_strp_am.nii.gz -b LAF_T1w_DN_1.nii.gz -exp 'a*b' -prefix LAF_T1w_strp_ver2.nii.gz
+
+# Align
+
+3dAllineate -base LAF_T1w_strp_ver2.nii.gz -input LAF_20190821_REST_1_mn_N4_shft.nii.gz -1Dmatrix_save LAF_20190821_EPI2ANAT.1D -prefix LAF_20190821_REST_1_mn_N4_alg.nii.gz -EPI -master BASE -mast_dxyz 1.5 -overwrite -warpfreeze -warp aff -twobest 20 -maxrot 15 -maxshf 15 # -twobest 20 -maxrot 40 -maxshf 40 -weight_frac 1.0 -warp aff -warpfreeze  -twopass -cmass -fineblur 1 -source_automask+2
+
+@Align_Centers -base LAF_T1w_strp_ver2.nii.gz -dset LAF_20190821_REST_1_stc_mot.nii.gz -prefix LAF_20190821_REST_1_stc_mot_shft.nii.gz
+3dAllineate -base LAF_T1w_strp_ver2.nii.gz -input LAF_20190821_REST_1_stc_mot_shft.nii.gz -1Dmatrix_apply LAF_20190821_EPI2ANAT.1D -prefix LAF_20190821_REST_1_stc_mot_alg.nii.gz
+
+
